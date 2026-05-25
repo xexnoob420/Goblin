@@ -21,12 +21,6 @@ jobs:
 
       - name: Create App Environment
         run: |
-          # Ensure essential assets directory structure exists
-          mkdir -p www
-          
-          # Create a dummy index.html so Capacitor sync doesn't fail on an empty directory
-          echo "<html><body><h1>Goblin Terminal</h1></body></html>" > www/index.html
-          
           # Initialize configuration scripts
           npm init -y
           npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
