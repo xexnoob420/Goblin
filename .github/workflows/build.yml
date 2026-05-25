@@ -1,4 +1,4 @@
-name: Build Goblin APK
+Name: Build Goblin APK
 on: [push, workflow_dispatch]
 
 jobs:
@@ -24,18 +24,26 @@ jobs:
           # Ensure essential assets directory structure exists
           mkdir -p www
           
-          # Initialize headless local configuration scripts
+          # Create a dummy index.html so Capacitor sync doesn't fail on an empty directory
+          echo "<html><body><h1>Goblin Terminal</h1></body></html>" > www/index.html
+          
+          # Initialize configuration scripts
           npm init -y
           npm install @capacitor/core@latest @capacitor/cli@latest @capacitor/android@latest
           
           # Generate the local setup profiles
           npx cap init "Goblin Terminal" "com.goblin.market" --web-dir=www
+          
+          # Add the android platform (this generates the /android folder and its gradlew files)
           npx cap add android
+          
+          # Sync the web assets into the android project
           npx cap sync
 
       - name: Compile Android Debug APK
         run: |
           cd android
+          # Grant execution permission to the freshly generated Gradle wrapper
           chmod +x gradlew
           ./gradlew assembleDebug
 
