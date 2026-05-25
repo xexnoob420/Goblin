@@ -388,7 +388,8 @@ function renderCards(){
     // Render up to 300 cards
     items.slice(0, 300).forEach(item => {
         const isFavorite = favorites.includes(item.id);
-        const iconSrc = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.name)}.png`;
+        // Use item ID for more reliable image fetching
+        const iconSrc = `https://secure.runescape.com/m=itemdb_oldschool/obj_big.gif?id=${item.id}`;
 
         const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
         let statusClass = "status-dead";
@@ -409,7 +410,7 @@ function renderCards(){
             <div class="card-favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
                 ${isFavorite ? "⭐" : "☆"}
             </div>
-            <img src="${iconSrc}" alt="${item.name}" class="card-icon" onerror="this.src='https://oldschool.runescape.wiki/images/Coins_10000.png';">
+            <img src="${iconSrc}" alt="${item.name}" class="card-icon" onerror="this.src='https://secure.runescape.com/m=itemdb_oldschool/obj_big.gif?id=995';">
             <div class="card-name">${item.name}</div>
             <div class="card-data">
                 <div class="card-price">Buy: ${item.low.toLocaleString()} gp</div>
