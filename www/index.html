@@ -68,6 +68,7 @@
         border-radius:8px;
         height: 40px;
         box-sizing: border-box;
+        min-width: 150px;
     }
 
     button{
@@ -89,75 +90,117 @@
     .stats{
         margin-bottom:15px;
         color:var(--muted);
+        font-size: 13px;
     }
 
-    table{
-        width:100%;
-        border-collapse:collapse;
-        background:var(--panel);
-        border-radius:14px;
-        overflow:hidden;
+    /* CARD GRID LAYOUT */
+    .cards-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
     }
 
-    th{
-        background:var(--panel2);
-        padding:12px;
-        text-align: left;
+    @media (max-width: 768px) {
+        .cards-container {
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 12px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .cards-container {
+            grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+            gap: 10px;
+        }
+    }
+
+    .card {
+        background: var(--panel);
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 12px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .card:hover {
+        background: var(--panel2);
+        border-color: var(--gold);
+        transform: translateY(-2px);
+    }
+
+    .card-favorite {
+        font-size: 18px;
         cursor: pointer;
         user-select: none;
     }
 
-    th:hover {
-        background: #2e425a;
-        color: white;
+    .card-icon {
+        width: 64px;
+        height: 64px;
+        image-rendering: pixelated;
+        margin: 0 auto;
     }
 
-    td{
-        padding:10px;
-        border-bottom:1px solid #334155;
+    .card-name {
+        font-weight: bold;
+        font-size: 12px;
+        color: var(--text);
+        word-break: break-word;
+        min-height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
-    tr:hover{
-        background:#223042;
+    .card-data {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
     }
 
-    img{
-        width:32px;
-        height:32px;
-        image-rendering:pixelated;
-        vertical-align: middle;
+    .card-price {
+        color: #60a5fa;
     }
 
-    .favorite{
-        cursor:pointer;
-        font-size:20px;
-        text-align: center;
-        width: 40px;
+    .card-margin {
+        font-weight: bold;
     }
 
-    .flip-good{
-        color:var(--green);
-        font-weight:bold;
+    .card-margin.good {
+        color: var(--green);
     }
 
-    .flip-bad{
-        color:var(--red);
+    .card-margin.bad {
+        color: var(--red);
     }
 
-    .pill{
-        display:inline-block;
-        background:#334155;
-        padding:3px 8px;
-        border-radius:999px;
-        font-size:12px;
+    .card-profit {
+        color: var(--gold);
+        font-weight: bold;
+        padding: 4px;
+        background: rgba(245, 197, 66, 0.1);
+        border-radius: 4px;
+    }
+
+    .card-age {
+        font-size: 10px;
+        color: var(--muted);
     }
 
     .status-dot {
         display: inline-block;
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
         border-radius: 50%;
-        margin-right: 6px;
+        margin-right: 4px;
     }
     .status-fresh { background-color: var(--green); }
     .status-stale { background-color: var(--orange); }
@@ -166,12 +209,17 @@
     .footer{
         margin-top:20px;
         color:var(--muted);
-        font-size:13px;
+        font-size:12px;
     }
 
     .loading{
         margin-top:20px;
         color:var(--gold);
+        text-align: center;
+    }
+
+    #cards {
+        min-height: 200px;
     }
 </style>
 </head>
@@ -209,27 +257,10 @@
     Summoning goblin economists...
 </div>
 
-<table id="table" style="display:none;">
-    <thead>
-        <tr>
-            <th style="text-align: center;" data-sort="favorite">★</th>
-            <th data-sort="lastUpdateTime">Age</th>
-            <th style="cursor: default;">Icon</th>
-            <th data-sort="name">Name</th>
-            <th data-sort="low">Buy Price (Low)</th>
-            <th data-sort="high">Sell Price (High)</th>
-            <th data-sort="margin">Net Margin (2% Tax)</th>
-            <th data-sort="geLimit">Limit (4h)</th>
-            <th data-sort="affordableQty">Affordable Qty</th>
-            <th data-sort="maxProfit">Max Profit</th>
-            <th data-sort="budgetProfit">Budget Profit</th>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
+<div class="cards-container" id="cards" style="display:none;"></div>
 
 <div class="footer">
-    Live data from OSRS Wiki API & Jagex Database. Tax note: Items valued under 100 GP are completely exempt from the 2% Grand Exchange Tax! Net Margin accounts for the exact 2% fee (capped at 5,000,000 GP per item).
+    Live data from OSRS Wiki API & Jagex Database. Tax note: Items valued under 100 GP are completely exempt from the 2% Grand Exchange Tax!
 </div>
 
 <script>
@@ -247,10 +278,6 @@ let allItems = [];
 let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
 let searchTimeout;
 
-// Track active sorting profiles
-let currentSortColumn = "maxProfit"; 
-let isDescending = true;
-
 // Exact 2% post-tax system calculation engine
 function calculateNetMargin(low, high) {
     if (high < 100) {
@@ -262,7 +289,7 @@ function calculateNetMargin(low, high) {
 
 async function refreshData() {
     document.getElementById("loading").style.display = "block";
-    document.getElementById("table").style.display = "none";
+    document.getElementById("cards").style.display = "none";
     document.getElementById("loading").innerText = "Summoning goblin economists...";
 
     try {
@@ -307,7 +334,7 @@ async function refreshData() {
         })
         .filter(Boolean);
 
-        renderTable();
+        renderCards();
 
     } catch(err){
         console.error(err);
@@ -315,9 +342,9 @@ async function refreshData() {
     }
 }
 
-function renderTable(){
-    const tbody = document.querySelector("tbody");
-    tbody.innerHTML = "";
+function renderCards(){
+    const cardsContainer = document.getElementById("cards");
+    cardsContainer.innerHTML = "";
 
     let items = [...allItems];
 
@@ -351,29 +378,17 @@ function renderTable(){
         items = items.filter(item => item.margin > 1 && item.buyVolume > 15000);
     }
 
-    // Dynamic Flexible Column Sorting Matrix
-    items.sort((a, b) => {
-        let valA = a[currentSortColumn];
-        let valB = b[currentSortColumn];
+    // Sort by max profit (descending)
+    items.sort((a, b) => b.maxProfit - a.maxProfit);
 
-        if (typeof valA === "string") {
-            return isDescending ? valB.localeCompare(valA) : valA.localeCompare(valB);
-        }
-
-        return isDescending ? valB - valA : valA - valB;
-    });
-
-    updateHeaderArrows();
-
-    // Render 300 row standard chunk size
+    // Render up to 300 cards
     items.slice(0, 300).forEach(item => {
         const isFavorite = favorites.includes(item.id);
-        const row = document.createElement("tr");
         const iconSrc = `https://secure.runescape.com/m=itemdb_oldschool/obj_sprite.gif?id=${item.id}`;
 
         const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
         let statusClass = "status-dead";
-        let ageText = ageMinutes + "m ago";
+        let ageText = ageMinutes + "m";
         
         if (ageMinutes <= 3) statusClass = "status-fresh";
         else if (ageMinutes <= 12) statusClass = "status-stale";
@@ -382,81 +397,38 @@ function renderTable(){
             ageText = "Old";
         }
 
-        row.innerHTML = `
-            <td class="favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
+        const marginClass = item.margin > 0 ? "good" : "bad";
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+            <div class="card-favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
                 ${isFavorite ? "⭐" : "☆"}
-            </td>
-            <td>
-                <span class="status-dot ${statusClass}"></span><span style="font-size:12px; color:var(--muted);">${ageText}</span>
-            </td>
-            <td>
-                <img src="${iconSrc}" alt="" onerror="this.src='https://oldschool.runescape.wiki/images/Coins_10000.png';">
-            </td>
-            <td><strong>${item.name}</strong></td>
-            <td>${item.low.toLocaleString()} gp</td>
-            <td>${item.high.toLocaleString()} gp</td>
-            <td class="${item.margin > 0 ? 'flip-good' : 'flip-bad'}">
-                ${Math.floor(item.margin).toLocaleString()} gp
-            </td>
-            <td>${item.geLimit > 0 ? item.geLimit.toLocaleString() : 'N/A'}</td>
-            <td style="color: #60a5fa;">${item.affordableQty.toLocaleString()}</td>
-            <td style="color: var(--gold); font-weight: bold;">${item.maxProfit > 0 ? Math.floor(item.maxProfit).toLocaleString() + ' gp' : '0'}</td>
-            <td>
-                <span class="pill" style="border: 1px solid ${item.budgetProfit > 10000 ? 'var(--green)' : '#334155'}">
-                    +${Math.floor(item.budgetProfit).toLocaleString()} gp
-                </span>
-            </td>
+            </div>
+            <img src="${iconSrc}" alt="${item.name}" class="card-icon" onerror="this.src='https://oldschool.runescape.wiki/images/Coins_10000.png';">
+            <div class="card-name">${item.name}</div>
+            <div class="card-data">
+                <div class="card-price">Buy: ${item.low.toLocaleString()} gp</div>
+                <div class="card-price">Sell: ${item.high.toLocaleString()} gp</div>
+                <div class="card-margin ${marginClass}">Margin: ${Math.floor(item.margin).toLocaleString()} gp</div>
+                <div class="card-profit">+${Math.floor(item.budgetProfit).toLocaleString()} gp</div>
+                <div class="card-age"><span class="status-dot ${statusClass}"></span>${ageText}</div>
+            </div>
         `;
-        tbody.appendChild(row);
+        cardsContainer.appendChild(card);
     });
 
-    document.getElementById("stats").innerHTML = `Found ${items.length.toLocaleString()} items matching criteria. Sorted by: <strong>${currentSortColumn} (${isDescending ? 'Descending':'Ascending'})</strong>`;
+    document.getElementById("stats").innerHTML = `📊 Found ${items.length.toLocaleString()} items matching criteria`;
     document.getElementById("loading").style.display = "none";
-    document.getElementById("table").style.display = "table";
+    document.getElementById("cards").style.display = "grid";
 }
-
-function updateHeaderArrows() {
-    document.querySelectorAll("th[data-sort]").forEach(th => {
-        const colName = th.getAttribute("data-sort");
-        // Clear old arrow markers
-        let cleanText = th.innerText.replace(/ ▲| ▼/g, "");
-        if (colName === currentSortColumn) {
-            cleanText += isDescending ? " ▼" : " ▲";
-        }
-        th.innerText = cleanText;
-    });
-}
-
-function toggleFavorite(id){
-    if(favorites.includes(id)){
-        favorites = favorites.filter(x => x !== id);
-    } else {
-        favorites.push(id);
-    }
-    localStorage.setItem("favorites", JSON.stringify(favorites));
-    renderTable();
-}
-
-// Event hooks setup for column clicks
-document.querySelectorAll("th[data-sort]").forEach(th => {
-    th.addEventListener("click", () => {
-        const targetColumn = th.getAttribute("data-sort");
-        if (currentSortColumn === targetColumn) {
-            isDescending = !isDescending; // Toggle directional orientation
-        } else {
-            currentSortColumn = targetColumn;
-            isDescending = true; // Default sorting layout direction choice
-        }
-        renderTable();
-    });
-});
 
 document.getElementById("search").addEventListener("input", () => {
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(renderTable, 220);
+    searchTimeout = setTimeout(renderCards, 220);
 });
-document.getElementById("filter").addEventListener("change", renderTable);
-document.getElementById("budget").addEventListener("input", renderTable);
+document.getElementById("filter").addEventListener("change", renderCards);
+document.getElementById("budget").addEventListener("input", renderCards);
 
 refreshData();
 setInterval(refreshData, 60000);
