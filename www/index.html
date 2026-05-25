@@ -143,8 +143,12 @@
     .card-icon {
         width: 64px;
         height: 64px;
-        image-rendering: pixelated;
         margin: 0 auto;
+        object-fit: contain;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        padding: 4px;
+        box-sizing: border-box;
     }
 
     .card-name {
@@ -384,7 +388,7 @@ function renderCards(){
     // Render up to 300 cards
     items.slice(0, 300).forEach(item => {
         const isFavorite = favorites.includes(item.id);
-        const iconSrc = `https://secure.runescape.com/m=itemdb_oldschool/obj_sprite.gif?id=${item.id}`;
+        const iconSrc = `https://oldschool.runescape.wiki/images/${encodeURIComponent(item.name)}.png`;
 
         const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
         let statusClass = "status-dead";
@@ -421,6 +425,16 @@ function renderCards(){
     document.getElementById("stats").innerHTML = `📊 Found ${items.length.toLocaleString()} items matching criteria`;
     document.getElementById("loading").style.display = "none";
     document.getElementById("cards").style.display = "grid";
+}
+
+function toggleFavorite(id){
+    if(favorites.includes(id)){
+        favorites = favorites.filter(x => x !== id);
+    } else {
+        favorites.push(id);
+    }
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+    renderCards();
 }
 
 document.getElementById("search").addEventListener("input", () => {
