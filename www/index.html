@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+<title>OSRS F2P Market Goblin Terminal Pro</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+<style>
+    :root{
+        --bg:#10151c;
+        --panel:#1a2430;
+        --panel2:#243447;
+        --gold:#f5c542;
+        --text:#e6edf3;
+        --muted:#94a3b8;
+        --green:#4ade80;
+        --red:#f87171;
+        --orange:#fb923c;
+    }
+
+    body{
+        margin:0;
+        background:linear-gradient(to bottom,#0f172a,#111827);
+        color:var(--text);
+        font-family:Arial,sans-serif;
+        padding:20px;
+    }
+
+    h1{
+        font-family:'Press Start 2P', cursive;
+        color:var(--gold);
+        font-size:22px;
+        margin-bottom:12px;
+    }
+
+    .controls{
+        display:flex;
+        flex-wrap:wrap;
+        gap:10px;
+        margin-bottom:20px;
+        background: var(--panel);
+        padding: 15px;
+        border-radius: 12px;
+        border: 1px solid #334155;
+    }
+
+    .input-group {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .input-group label {
+        font-size: 11px;
+        color: var(--muted);
+        text-transform: uppercase;
+        font-weight: bold;
+    }
+
+    input, select{
+        background:#10151c;
+        border:1px solid #334155;
+        color:white;
+        padding:10px;
+        border-radius:8px;
+        height: 40px;
+        box-sizing: border-box;
+    }
+
+    button{
+        background:var(--gold);
+        color:black;
+        border:none;
+        padding:0 20px;
+        border-radius:8px;
+        cursor:pointer;
+        font-weight:bold;
+        height: 40px;
+        align-self: flex-end;
+    }
+
+    button:hover{
+        opacity:0.9;
+    }
+
+    .stats{
+        margin-bottom:15px;
+        color:var(--muted);
+    }
+
+    table{
+        width:100%;
+        border-collapse:collapse;
+        background:var(--panel);
+        border-radius:14px;
+        overflow:hidden;
+    }
+
+    th{
+        background:var(--panel2);
+        padding:12px;
+        text-align: left;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    th:hover {
+        background: #2e425a;
+        color: white;
+    }
+
+    td{
+        padding:10px;
+        border-bottom:1px solid #334155;
+    }
+
+    tr:hover{
+        background:#223042;
+    }
+
+    img{
+        width:32px;
+        height:32px;
+        image-rendering:pixelated;
+        vertical-align: middle;
+    }
+
+    .favorite{
+        cursor:pointer;
+        font-size:20px;
+        text-align: center;
+        width: 40px;
+    }
+
+    .flip-good{
+        color:var(--green);
+        font-weight:bold;
+    }
+
+    .flip-bad{
+        color:var(--red);
+    }
+
+    .pill{
+        display:inline-block;
+        background:#334155;
+        padding:3px 8px;
+        border-radius:999px;
+        font-size:12px;
+    }
+
+    .status-dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 6px;
+    }
+    .status-fresh { background-color: var(--green); }
+    .status-stale { background-color: var(--orange); }
+    .status-dead { background-color: var(--red); }
+
+    .footer{
+        margin-top:20px;
+        color:var(--muted);
+        font-size:13px;
+    }
+
+    .loading{
+        margin-top:20px;
+        color:var(--gold);
+    }
+</style>
+</head>
+<body>
+
+<h1>🪙 F2P Market Goblin Terminal Pro</h1>
+
+<div class="controls">
+    <div class="input-group">
+        <label>Search Items</label>
+        <input type="text" id="search" placeholder="Search items..." />
+    </div>
+
+    <div class="input-group">
+        <label>Filter Bracket</label>
+        <select id="filter">
+            <option value="all">All F2P</option>
+            <option value="under100">Under 100 GP (Tax Exempt)</option>
+            <option value="favorites">Favorites</option>
+            <option value="flips">Best High-Volume Flips</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <label>Your Cash Stack (GP)</label>
+        <input type="number" id="budget" value="100000" placeholder="e.g. 100000" />
+    </div>
+
+    <button onclick="refreshData()">🔄 Refresh Data</button>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="loading" id="loading">
+    Summoning goblin economists...
+</div>
+
+<table id="table" style="display:none;">
+    <thead>
+        <tr>
+            <th style="text-align: center;" data-sort="favorite">★</th>
+            <th data-sort="lastUpdateTime">Age</th>
+            <th style="cursor: default;">Icon</th>
+            <th data-sort="name">Name</th>
+            <th data-sort="low">Buy Price (Low)</th>
+            <th data-sort="high">Sell Price (High)</th>
+            <th data-sort="margin">Net Margin (2% Tax)</th>
+            <th data-sort="geLimit">Limit (4h)</th>
+            <th data-sort="affordableQty">Affordable Qty</th>
+            <th data-sort="maxProfit">Max Profit</th>
+            <th data-sort="budgetProfit">Budget Profit</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<div class="footer">
+    Live data from OSRS Wiki API & Jagex Database. Tax note: Items valued under 100 GP are completely exempt from the 2% Grand Exchange Tax! Net Margin accounts for the exact 2% fee (capped at 5,000,000 GP per item).
+</div>
+
+<script>
+const mappingURL = "https://prices.runescape.wiki/api/v1/osrs/mapping";
+const latestURL = "https://prices.runescape.wiki/api/v1/osrs/latest";
+const volumeURL = "https://prices.runescape.wiki/api/v1/osrs/volumes";
+
+const customHeaders = {
+    headers: {
+        'User-Agent': 'F2P Market Goblin Pro Terminal - Interactive Engine'
+    }
+};
+
+let allItems = [];
+let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
+let searchTimeout;
+
+// Track active sorting profiles
+let currentSortColumn = "maxProfit"; 
+let isDescending = true;
+
+// Exact 2% post-tax system calculation engine
+function calculateNetMargin(low, high) {
+    if (high < 100) {
+        return high - low; 
+    }
+    const tax = Math.min(5000000, Math.floor(high * 0.02)); // Corrected to 2%
+    return high - low - tax;
+}
+
+async function refreshData() {
+    document.getElementById("loading").style.display = "block";
+    document.getElementById("table").style.display = "none";
+    document.getElementById("loading").innerText = "Summoning goblin economists...";
+
+    try {
+        const [mappingRes, latestRes, volumeRes] = await Promise.all([
+            fetch(mappingURL, customHeaders),
+            fetch(latestURL, customHeaders),
+            fetch(volumeURL, customHeaders)
+        ]);
+
+        const mapping = await mappingRes.json();
+        const latest = await latestRes.json();
+        const volumes = await volumeRes.json();
+
+        allItems = mapping
+        .filter(item => item.members === false)
+        .map(item => {
+            const price = latest.data[item.id];
+            const volume = volumes.data[item.id];
+
+            if(!price) return null;
+
+            const low = price.low || 0;
+            const high = price.high || 0;
+            const margin = calculateNetMargin(low, high); 
+            const buyVolume = volume || 0;
+            const geLimit = item.limit || 0;
+
+            const lastUpdateTime = Math.max(price.lowTime || 0, price.highTime || 0);
+            const maxProfit = margin > 0 && geLimit > 0 ? margin * geLimit : 0;
+
+            return {
+                id: item.id,
+                name: item.name,
+                low,
+                high,
+                margin,
+                buyVolume,
+                geLimit,
+                maxProfit,
+                lastUpdateTime
+            };
+        })
+        .filter(Boolean);
+
+        renderTable();
+
+    } catch(err){
+        console.error(err);
+        document.getElementById("loading").innerText = "The goblin market exploded. Check developer console.";
+    }
+}
+
+function renderTable(){
+    const tbody = document.querySelector("tbody");
+    tbody.innerHTML = "";
+
+    let items = [...allItems];
+
+    const search = document.getElementById("search").value.toLowerCase();
+    const filter = document.getElementById("filter").value;
+    const budget = parseInt(document.getElementById("budget").value) || 0;
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    // Dynamic property injection (Budget based parameters)
+    items = items.map(item => {
+        let affordableQty = item.low > 0 ? Math.floor(budget / item.low) : 0;
+        if(item.geLimit > 0 && affordableQty > item.geLimit) {
+            affordableQty = item.geLimit;
+        }
+        const budgetProfit = item.margin > 0 ? affordableQty * item.margin : 0;
+        const isFavNum = favorites.includes(item.id) ? 1 : 0;
+
+        return { ...item, affordableQty, budgetProfit, favorite: isFavNum };
+    });
+
+    // Content filtration engines
+    if(search) {
+        items = items.filter(item => item.name.toLowerCase().includes(search));
+    }
+
+    if(filter === "under100"){
+        items = items.filter(item => item.low > 0 && item.low < 100);
+    } else if(filter === "favorites"){
+        items = items.filter(item => favorites.includes(item.id));
+    } else if(filter === "flips"){
+        items = items.filter(item => item.margin > 1 && item.buyVolume > 15000);
+    }
+
+    // Dynamic Flexible Column Sorting Matrix
+    items.sort((a, b) => {
+        let valA = a[currentSortColumn];
+        let valB = b[currentSortColumn];
+
+        if (typeof valA === "string") {
+            return isDescending ? valB.localeCompare(valA) : valA.localeCompare(valB);
+        }
+
+        return isDescending ? valB - valA : valA - valB;
+    });
+
+    updateHeaderArrows();
+
+    // Render 300 row standard chunk size
+    items.slice(0, 300).forEach(item => {
+        const isFavorite = favorites.includes(item.id);
+        const row = document.createElement("tr");
+        const iconSrc = `https://secure.runescape.com/m=itemdb_oldschool/obj_sprite.gif?id=${item.id}`;
+
+        const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
+        let statusClass = "status-dead";
+        let ageText = ageMinutes + "m ago";
+        
+        if (ageMinutes <= 3) statusClass = "status-fresh";
+        else if (ageMinutes <= 12) statusClass = "status-stale";
+        
+        if (item.lastUpdateTime === 0 || ageMinutes > 120) {
+            ageText = "Old";
+        }
+
+        row.innerHTML = `
+            <td class="favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
+                ${isFavorite ? "⭐" : "☆"}
+            </td>
+            <td>
+                <span class="status-dot ${statusClass}"></span><span style="font-size:12px; color:var(--muted);">${ageText}</span>
+            </td>
+            <td>
+                <img src="${iconSrc}" alt="" onerror="this.src='https://oldschool.runescape.wiki/images/Coins_10000.png';">
+            </td>
+            <td><strong>${item.name}</strong></td>
+            <td>${item.low.toLocaleString()} gp</td>
+            <td>${item.high.toLocaleString()} gp</td>
+            <td class="${item.margin > 0 ? 'flip-good' : 'flip-bad'}">
+                ${Math.floor(item.margin).toLocaleString()} gp
+            </td>
+            <td>${item.geLimit > 0 ? item.geLimit.toLocaleString() : 'N/A'}</td>
+            <td style="color: #60a5fa;">${item.affordableQty.toLocaleString()}</td>
+            <td style="color: var(--gold); font-weight: bold;">${item.maxProfit > 0 ? Math.floor(item.maxProfit).toLocaleString() + ' gp' : '0'}</td>
+            <td>
+                <span class="pill" style="border: 1px solid ${item.budgetProfit > 10000 ? 'var(--green)' : '#334155'}">
+                    +${Math.floor(item.budgetProfit).toLocaleString()} gp
+                </span>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+
+    document.getElementById("stats").innerHTML = `Found ${items.length.toLocaleString()} items matching criteria. Sorted by: <strong>${currentSortColumn} (${isDescending ? 'Descending':'Ascending'})</strong>`;
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("table").style.display = "table";
+}
+
+function updateHeaderArrows() {
+    document.querySelectorAll("th[data-sort]").forEach(th => {
+        const colName = th.getAttribute("data-sort");
+        // Clear old arrow markers
+        let cleanText = th.innerText.replace(/ ▲| ▼/g, "");
+        if (colName === currentSortColumn) {
+            cleanText += isDescending ? " ▼" : " ▲";
+        }
+        th.innerText = cleanText;
+    });
+}
+
+function toggleFavorite(id){
+    if(favorites.includes(id)){
+        favorites = favorites.filter(x => x !== id);
+    } else {
+        favorites.push(id);
+    }
+    localStorage.setItem("favorites", JSON.stringify(favorites));
+    renderTable();
+}
+
+// Event hooks setup for column clicks
+document.querySelectorAll("th[data-sort]").forEach(th => {
+    th.addEventListener("click", () => {
+        const targetColumn = th.getAttribute("data-sort");
+        if (currentSortColumn === targetColumn) {
+            isDescending = !isDescending; // Toggle directional orientation
+        } else {
+            currentSortColumn = targetColumn;
+            isDescending = true; // Default sorting layout direction choice
+        }
+        renderTable();
+    });
+});
+
+document.getElementById("search").addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(renderTable, 220);
+});
+document.getElementById("filter").addEventListener("change", renderTable);
+document.getElementById("budget").addEventListener("input", renderTable);
+
+refreshData();
+setInterval(refreshData, 60000);
+</script>
+
+</body>
+</html>
