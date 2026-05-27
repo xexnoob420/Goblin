@@ -60,7 +60,7 @@
         font-weight: bold;
     }
 
-    input, select{
+    input[type="text"], input[type="number"], select{
         background:#10151c;
         border:1px solid #334155;
         color:white;
@@ -69,6 +69,30 @@
         height: 40px;
         box-sizing: border-box;
         min-width: 150px;
+    }
+
+    input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: var(--gold);
+        margin-top: 5px;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: flex-end;
+        gap: 8px;
+        padding-bottom: 0px;
+    }
+
+    .checkbox-group label {
+        font-size: 12px;
+        margin: 0;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
     button{
@@ -241,9 +265,25 @@
         <label>Filter Bracket</label>
         <select id="filter">
             <option value="all">All F2P</option>
-            <option value="under100">Under 100 GP (Tax Exempt)</option>
             <option value="favorites">Favorites</option>
             <option value="flips">Best High-Volume Flips</option>
+        </select>
+    </div>
+
+    <div class="checkbox-group">
+        <input type="checkbox" id="under100" />
+        <label for="under100">Under 100 GP (Tax Exempt)</label>
+    </div>
+
+    <div class="input-group">
+        <label>Sort By</label>
+        <select id="sort">
+            <option value="profit">Highest Profit</option>
+            <option value="budget">Highest Budget Profit</option>
+            <option value="margin">Highest Margin</option>
+            <option value="margin-asc">Lowest Margin</option>
+            <option value="recent">Most Recently Updated</option>
+            <option value="oldest">Least Recently Updated</option>
         </select>
     </div>
 
@@ -354,6 +394,8 @@ function renderCards(){
 
     const search = document.getElementById("search").value.toLowerCase();
     const filter = document.getElementById("filter").value;
+    const sort = document.getElementById("sort").value;
+    const under100 = document.getElementById("under100").checked;
     const budget = parseInt(document.getElementById("budget").value) || 0;
     const nowSeconds = Math.floor(Date.now() / 1000);
 
@@ -374,21 +416,34 @@ function renderCards(){
         items = items.filter(item => item.name.toLowerCase().includes(search));
     }
 
-    if(filter === "under100"){
+    if(under100){
         items = items.filter(item => item.low > 0 && item.low < 100);
-    } else if(filter === "favorites"){
+    }
+
+    if(filter === "favorites"){
         items = items.filter(item => favorites.includes(item.id));
     } else if(filter === "flips"){
         items = items.filter(item => item.margin > 1 && item.buyVolume > 15000);
     }
 
-    // Sort by max profit (descending)
-    items.sort((a, b) => b.maxProfit - a.maxProfit);
+    // Sort by selected option
+    if(sort === "profit"){
+        items.sort((a, b) => b.maxProfit - a.maxProfit);
+    } else if(sort === "budget"){
+        items.sort((a, b) => b.budgetProfit - a.budgetProfit);
+    } else if(sort === "margin"){
+        items.sort((a, b) => b.margin - a.margin);
+    } else if(sort === "margin-asc"){
+        items.sort((a, b) => a.margin - b.margin);
+    } else if(sort === "recent"){
+        items.sort((a, b) => b.lastUpdateTime - a.lastUpdateTime);
+    } else if(sort === "oldest"){
+        items.sort((a, b) => a.lastUpdateTime - b.lastUpdateTime);
+    }
 
     // Render up to 300 cards
     items.slice(0, 300).forEach(item => {
         const isFavorite = favorites.includes(item.id);
-        // Use item ID for more reliable image fetching
         const iconSrc = `https://secure.runescape.com/m=itemdb_oldschool/obj_big.gif?id=${item.id}`;
 
         const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
@@ -443,6 +498,8 @@ document.getElementById("search").addEventListener("input", () => {
     searchTimeout = setTimeout(renderCards, 220);
 });
 document.getElementById("filter").addEventListener("change", renderCards);
+document.getElementById("sort").addEventListener("change", renderCards);
+document.getElementById("under100").addEventListener("change", renderCards);
 document.getElementById("budget").addEventListener("input", renderCards);
 
 refreshData();
