@@ -484,6 +484,9 @@
     Live data from OSRS Wiki API & Jagex Database. Tax note: Items valued under 100 GP are completely exempt from the 1% Grand Exchange Tax!
 </div>
 
+<script src="https://unpkg.com/@capacitor/core"></script>
+<script src="https://unpkg.com/@capacitor/app"></script>
+
 <script>
 const mappingURL = "https://prices.runescape.wiki/api/v1/osrs/mapping";
 const latestURL = "https://prices.runescape.wiki/api/v1/osrs/latest";
@@ -501,6 +504,31 @@ let favorites = JSON.parse(localStorage.getItem("favorites") || "[]");
 let searchTimeout;
 let selectedItem = null;
 let itemWikiCache = {};
+
+// Handle Android Back Button
+function setupBackButtonHandler() {
+    const { App } = window.capacitor;
+    
+    App.addListener('backButton', ({ canGoBack }) => {
+        if (selectedItem) {
+            // If a detail panel is open, close it instead of exiting
+            closeDetail();
+        } else if (!canGoBack) {
+            // Only exit the app if there's nowhere to go back to
+            App.exitApp();
+        } else {
+            // Let the web view handle normal back navigation
+            window.history.back();
+        }
+    });
+}
+
+// Initialize back button handler when Capacitor is ready
+if (window.capacitor) {
+    setupBackButtonHandler();
+} else {
+    document.addEventListener('capacitorReady', setupBackButtonHandler);
+}
 
 // Correct tax calculation (1% tax, capped at 5M)
 function calculateNetMargin(low, high) {
