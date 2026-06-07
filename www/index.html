@@ -1001,80 +1001,64 @@ function renderCards(){
         if (item.isDump) {
             card.classList.add('dump-warning');
         }
-        
         card.innerHTML = `
-            <div class="card-favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
-                ${isFavorite ? "⭐" : "☆"}
+            <div class="card-favorite" onclick="event.stopPropagation(); toggleFavorite(${item.id}); renderCards();">
+                ${isFavorite ? '⭐' : '☆'}
             </div>
             <img src="${iconSrc}" alt="${item.name}" class="card-icon" onerror="this.src='https://secure.runescape.com/m=itemdb_oldschool/obj_big.gif?id=995';">
             <div class="card-name">${item.name}</div>
             <div class="card-data">
-                <div class="card-price">Buy: ${item.low.toLocaleString()} gp</div>
-                <div class="card-price">Sell: ${item.high.toLocaleString()} gp</div>
-                <div class="card-margin ${marginClass}">Margin: ${Math.floor(item.margin).toLocaleString()} gp</div>
-                <div class="card-profit">+${Math.floor(item.budgetProfit).toLocaleString()} gp</div>
+                <div class="card-price">${item.low.toLocaleString()} → ${item.high.toLocaleString()}</div>
+                <div class="card-margin ${marginClass}">${Math.floor(item.margin).toLocaleString()} gp</div>
+                <div class="card-profit">${item.budgetProfit.toLocaleString()} gp</div>
                 <div class="card-age"><span class="status-dot ${statusClass}"></span>${ageText}</div>
             </div>
         `;
-        
-        // Add click handler for detail view
-        card.addEventListener('click', (e) => {
-            // Don't trigger if clicking the favorite star
-            if (e.target.classList.contains('card-favorite')) return;
-            showItemDetails(item, card);
-        });
-        
+        card.onclick = () => showItemDetails(item, card);
         cardsContainer.appendChild(card);
     });
 
-    const dumpCount = items.filter(item => item.isDump).length;
-    let statsText = `📊 Found ${items.length.toLocaleString()} items matching criteria`;
-    if (showDumps) {
-        statsText += ` | 🚨 Showing ${dumpCount} possible dump items`;
-    } else if (dumpCount > 0) {
-        statsText += ` | ⚠️ ${dumpCount} items flagged as possible dumps (check "Show Only Possible Dumps" to view)`;
+    if(items.length === 0) {
+        cardsContainer.innerHTML = "<p style='grid-column: 1/-1; text-align: center; color: var(--muted);'>No items match your filters</p>";
     }
-    
-    document.getElementById("stats").innerHTML = statsText;
+
     document.getElementById("loading").style.display = "none";
     document.getElementById("cards").style.display = "grid";
+
+    const stats = document.getElementById("stats");
+    stats.innerText = `${items.length} items available`;
 }
 
-function toggleFavorite(id){
-    if(favorites.includes(id)){
-        favorites = favorites.filter(x => x !== id);
+function toggleFavorite(id) {
+    const index = favorites.indexOf(id);
+    if (index > -1) {
+        favorites.splice(index, 1);
     } else {
         favorites.push(id);
     }
     localStorage.setItem("favorites", JSON.stringify(favorites));
-    
-    // If the detail panel is open for this item, update it
-    if (selectedItem && selectedItem.id === id) {
-        const card = document.querySelector(`.card[data-item-id="${id}"]`) || 
-                     Array.from(document.querySelectorAll('.card')).find(c => 
-                         c.querySelector('.card-name').textContent === selectedItem.name
-                     );
-        if (card) {
-            showItemDetails(selectedItem, card);
-        }
-    }
-    
-    renderCards();
 }
 
+refreshData();
+
+// Auto-refresh every 60 seconds
+setInterval(refreshData, 60000);
+
+// Event listeners
 document.getElementById("search").addEventListener("input", () => {
     clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(renderCards, 220);
+    searchTimeout = setTimeout(renderCards, 300);
 });
+
 document.getElementById("filter").addEventListener("change", renderCards);
 document.getElementById("sort").addEventListener("change", renderCards);
 document.getElementById("under100").addEventListener("change", renderCards);
 document.getElementById("showDumps").addEventListener("change", renderCards);
-document.getElementById("budget").addEventListener("input", renderCards);
+document.getElementById("budget").addEventListener("input", () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(renderCards, 300);
+});
 
-refreshData();
-setInterval(refreshData, 60000);
 </script>
-
 </body>
 </html>
