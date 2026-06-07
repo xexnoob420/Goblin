@@ -150,6 +150,7 @@
         display: flex;
         flex-direction: column;
         gap: 8px;
+        position: relative;
     }
 
     .card:hover {
@@ -161,6 +162,26 @@
     .card.selected {
         border-color: var(--gold);
         box-shadow: 0 0 15px rgba(245, 197, 66, 0.3);
+    }
+
+    .card.dump-warning {
+        border-color: var(--red);
+        box-shadow: 0 0 10px rgba(248, 113, 113, 0.2);
+    }
+
+    .card.dump-warning::before {
+        content: "⚠️ DUMP";
+        position: absolute;
+        top: -10px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--red);
+        color: white;
+        font-size: 9px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-weight: bold;
+        z-index: 1;
     }
 
     .card-favorite {
@@ -425,6 +446,17 @@
     #cards {
         min-height: 200px;
     }
+    
+    .dump-alert {
+        background: rgba(248, 113, 113, 0.1);
+        border: 1px solid var(--red);
+        border-radius: 8px;
+        padding: 10px;
+        margin-bottom: 10px;
+        color: var(--red);
+        font-size: 12px;
+        font-weight: bold;
+    }
 </style>
 </head>
 <body>
@@ -449,6 +481,11 @@
     <div class="checkbox-group">
         <input type="checkbox" id="under100" />
         <label for="under100">Under 100 GP (Tax Exempt)</label>
+    </div>
+    
+    <div class="checkbox-group">
+        <input type="checkbox" id="showDumps" />
+        <label for="showDumps">⚠️ Show Only Possible Dumps</label>
     </div>
 
     <div class="input-group">
@@ -484,9 +521,6 @@
     Live data from OSRS Wiki API & Jagex Database. Tax note: Items valued under 100 GP are completely exempt from the 1% Grand Exchange Tax!
 </div>
 
-<script src="https://unpkg.com/@capacitor/core"></script>
-<script src="https://unpkg.com/@capacitor/app"></script>
-
 <script>
 const mappingURL = "https://prices.runescape.wiki/api/v1/osrs/mapping";
 const latestURL = "https://prices.runescape.wiki/api/v1/osrs/latest";
@@ -505,37 +539,55 @@ let searchTimeout;
 let selectedItem = null;
 let itemWikiCache = {};
 
-// Handle Android Back Button
-function setupBackButtonHandler() {
-    const { App } = window.capacitor;
-    
-    App.addListener('backButton', ({ canGoBack }) => {
-        if (selectedItem) {
-            // If a detail panel is open, close it instead of exiting
-            closeDetail();
-        } else if (!canGoBack) {
-            // Only exit the app if there's nowhere to go back to
-            App.exitApp();
-        } else {
-            // Let the web view handle normal back navigation
-            window.history.back();
-        }
-    });
-}
-
-// Initialize back button handler when Capacitor is ready
-if (window.capacitor) {
-    setupBackButtonHandler();
-} else {
-    document.addEventListener('capacitorReady', setupBackButtonHandler);
-}
-
 // Correct tax calculation (1% tax, capped at 5M)
 function calculateNetMargin(low, high) {
     if (low === 0 || high === 0) return 0;
     if (high < 100) return high - low;
     const tax = Math.min(5000000, Math.floor(high * 0.01));
     return high - low - tax;
+}
+
+// Enhanced dump detection algorithm
+function detectDump(item) {
+    let dumpScore = 0;
+    let reasons = [];
+    
+    // Criteria 1: Very low margins with high volume
+    if (item.margin <= 5 && item.buyVolume > 50000) {
+        dumpScore += 3;
+        reasons.push("High volume, near-zero margins");
+    }
+    
+    // Criteria 2: Negative margins (buy price higher than sell)
+    if (item.margin < 0) {
+        dumpScore += 5;
+        reasons.push("Negative profit margins");
+    }
+    
+    // Criteria 3: High volume but low buy price (fire sale)
+    if (item.buyVolume > 100000 && item.low < 100) {
+        dumpScore += 2;
+        reasons.push("Massive volume on cheap item");
+    }
+    
+    // Criteria 4: Margin less than 1% of item value
+    if (item.low > 0 && (item.margin / item.low) < 0.01 && item.buyVolume > 20000) {
+        dumpScore += 2;
+        reasons.push("Margins below 1% with high volume");
+    }
+    
+    // Criteria 5: Very low buy price compared to typical item value
+    if (item.low < 10 && item.buyVolume > 10000) {
+        dumpScore += 1;
+        reasons.push("Near-worthless item being heavily traded");
+    }
+    
+    return {
+        isDump: dumpScore >= 3,
+        dumpScore: dumpScore,
+        reasons: reasons,
+        severity: dumpScore >= 6 ? "High" : dumpScore >= 4 ? "Medium" : "Low"
+    };
 }
 
 // Fetch wiki information for an item
@@ -583,18 +635,20 @@ async function fetchWikiInfo(itemName) {
 
 // Analyze market trends based on price data
 function analyzeMarketTrends(item) {
+    const dumpAnalysis = detectDump(item);
     const volume = item.buyVolume;
     const margin = item.margin;
     const low = item.low;
     const high = item.high;
     
-    // Detect potential dumps (high volume, low buy price, negative margin)
-    if (volume > 50000 && margin < 5 && low < 100) {
+    // Priority: Check for dumps first
+    if (dumpAnalysis.isDump) {
         return {
             type: 'dump',
-            label: 'Possible Item Dump Detected',
+            label: `🚨 ${dumpAnalysis.severity} Risk Dump Detected`,
             class: 'market-dump',
-            description: 'High trading volume with very low margins suggests players are dumping this item.'
+            description: `Dump Score: ${dumpAnalysis.dumpScore}/10. Reasons: ${dumpAnalysis.reasons.join('. ')}.`,
+            dumpDetails: dumpAnalysis
         };
     }
     
@@ -647,6 +701,7 @@ async function showItemDetails(item, cardElement) {
     const detailContainer = document.getElementById('detail-container');
     const trends = analyzeMarketTrends(item);
     const wikiInfo = await fetchWikiInfo(item.name);
+    const dumpAnalysis = detectDump(item);
     
     // Calculate trade activity ratio
     const buyRatio = item.buyVolume > 0 ? 0.6 : 0.5; // Simulated, real data would be better
@@ -654,6 +709,16 @@ async function showItemDetails(item, cardElement) {
     
     const nowSeconds = Math.floor(Date.now() / 1000);
     const ageMinutes = item.lastUpdateTime > 0 ? Math.floor((nowSeconds - item.lastUpdateTime) / 60) : 999;
+    
+    let dumpWarningHTML = '';
+    if (dumpAnalysis.isDump) {
+        dumpWarningHTML = `
+            <div class="dump-alert">
+                ⚠️ DUMP WARNING (Severity: ${dumpAnalysis.severity}) - Score: ${dumpAnalysis.dumpScore}/10
+                <br>Reasons: ${dumpAnalysis.reasons.join(', ')}
+            </div>
+        `;
+    }
     
     detailContainer.innerHTML = `
         <div class="detail-panel">
@@ -667,6 +732,8 @@ async function showItemDetails(item, cardElement) {
                 </div>
                 <button class="detail-close" onclick="closeDetail()">✕</button>
             </div>
+            
+            ${dumpWarningHTML}
             
             <div class="detail-grid">
                 <div class="detail-section">
@@ -726,8 +793,10 @@ async function showItemDetails(item, cardElement) {
                         <span class="value">${item.high < 100 ? '✅ Tax Exempt' : '⚠️ 1% Tax'}</span>
                     </div>
                     <div class="detail-stat">
-                        <span class="label">Item ID:</span>
-                        <span class="value">#${item.id}</span>
+                        <span class="label">Dump Score:</span>
+                        <span class="value" style="color: ${dumpAnalysis.dumpScore >= 4 ? 'var(--red)' : dumpAnalysis.dumpScore >= 2 ? 'var(--orange)' : 'var(--green)'}">
+                            ${dumpAnalysis.dumpScore}/10
+                        </span>
                     </div>
                 </div>
             </div>
@@ -748,6 +817,14 @@ async function showItemDetails(item, cardElement) {
                             ${item.buyVolume > 10000 ? 'Excellent' : item.buyVolume > 1000 ? 'Moderate' : 'Poor'}
                         </span>
                     </div>
+                    ${dumpAnalysis.isDump ? `
+                    <div class="detail-stat">
+                        <span class="label">Dump Severity:</span>
+                        <span class="value" style="color: var(--red);">
+                            ${dumpAnalysis.severity} Risk
+                        </span>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
             
@@ -808,6 +885,9 @@ async function refreshData() {
 
             const lastUpdateTime = Math.max(price.lowTime || 0, price.highTime || 0);
             const maxProfit = margin > 0 && geLimit > 0 ? margin * geLimit : 0;
+            
+            // Add dump detection data
+            const dumpInfo = detectDump({ low, high, margin, buyVolume });
 
             return {
                 id: item.id,
@@ -818,7 +898,11 @@ async function refreshData() {
                 buyVolume,
                 geLimit,
                 maxProfit,
-                lastUpdateTime
+                lastUpdateTime,
+                isDump: dumpInfo.isDump,
+                dumpScore: dumpInfo.dumpScore,
+                dumpSeverity: dumpInfo.severity,
+                dumpReasons: dumpInfo.reasons
             };
         })
         .filter(Boolean);
@@ -841,6 +925,7 @@ function renderCards(){
     const filter = document.getElementById("filter").value;
     const sort = document.getElementById("sort").value;
     const under100 = document.getElementById("under100").checked;
+    const showDumps = document.getElementById("showDumps").checked;
     const budget = parseInt(document.getElementById("budget").value) || 0;
     const nowSeconds = Math.floor(Date.now() / 1000);
 
@@ -863,6 +948,10 @@ function renderCards(){
 
     if(under100){
         items = items.filter(item => item.low > 0 && item.low < 100);
+    }
+    
+    if(showDumps){
+        items = items.filter(item => item.isDump === true);
     }
 
     if(filter === "favorites"){
@@ -909,6 +998,9 @@ function renderCards(){
         if (selectedItem && selectedItem.id === item.id) {
             card.classList.add('selected');
         }
+        if (item.isDump) {
+            card.classList.add('dump-warning');
+        }
         
         card.innerHTML = `
             <div class="card-favorite" onclick="toggleFavorite(${item.id}); event.stopPropagation();">
@@ -935,7 +1027,15 @@ function renderCards(){
         cardsContainer.appendChild(card);
     });
 
-    document.getElementById("stats").innerHTML = `📊 Found ${items.length.toLocaleString()} items matching criteria`;
+    const dumpCount = items.filter(item => item.isDump).length;
+    let statsText = `📊 Found ${items.length.toLocaleString()} items matching criteria`;
+    if (showDumps) {
+        statsText += ` | 🚨 Showing ${dumpCount} possible dump items`;
+    } else if (dumpCount > 0) {
+        statsText += ` | ⚠️ ${dumpCount} items flagged as possible dumps (check "Show Only Possible Dumps" to view)`;
+    }
+    
+    document.getElementById("stats").innerHTML = statsText;
     document.getElementById("loading").style.display = "none";
     document.getElementById("cards").style.display = "grid";
 }
@@ -969,6 +1069,7 @@ document.getElementById("search").addEventListener("input", () => {
 document.getElementById("filter").addEventListener("change", renderCards);
 document.getElementById("sort").addEventListener("change", renderCards);
 document.getElementById("under100").addEventListener("change", renderCards);
+document.getElementById("showDumps").addEventListener("change", renderCards);
 document.getElementById("budget").addEventListener("input", renderCards);
 
 refreshData();
